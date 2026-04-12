@@ -1,0 +1,21 @@
+name = "business-orchestration-agent"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+# ── KV Namespace (stores run results) ─────────────────────────────────────────
+# Create with: npx wrangler kv:namespace create AGENT_KV
+# Then replace the id below with the one printed by that command.
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# ── Daily Cron Trigger ─────────────────────────────────────────────────────────
+[triggers]
+crons = ["0 8 * * *"]   # Every day at 08:00 UTC
+
+# ── Environment Variables ──────────────────────────────────────────────────────
+# Do NOT put your API key here. Set it as a secret:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#
+# [vars]
+# EXAMPLE_VAR = "example_value"
