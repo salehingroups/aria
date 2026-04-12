@@ -1,0 +1,16 @@
+{
+  "name": "business-orchestration-agent",
+  "version": "1.0.0",
+  "description": "Autonomous Business Orchestration Agent — Cloudflare Worker + Claude AI",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail",
+    "kv:create": "wrangler kv:namespace create AGENT_KV"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
