@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestration Control Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  :root {
+    --bg: #060a12;
+    --bg-elevated: #0c1220;
+    --card: #111a2e;
+    --card-hover: #162035;
+    --border: #1e2d4a;
+    --accent: #00ff88;
+    --accent-dim: rgba(0,255,136,0.15);
+    --accent-glow: rgba(0,255,136,0.3);
+    --cyan: #06d6f2;
+    --cyan-dim: rgba(6,214,242,0.12);
+    --warning: #f5a623;
+    --error: #ff4757;
+    --fg: #e8edf5;
+    --muted: #5a6a8a;
+    --success: #00ff88;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Animated background grid */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
+  }
+
+  /* Glow orbs */
+  .glow-orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow-orb-1 {
+    width: 500px; height: 500px;
+    background: rgba(0,255,136,0.06);
+    top: -100px; left: -100px;
+    animation: orbFloat1 20s ease-in-out infinite;
+  }
+
+  .glow-orb-2 {
+    width: 400px; height: 400px;
+    background: rgba(6,214,242,0.05);
+    bottom: -100px; right: -100px;
+    animation: orbFloat2 25s ease-in-out infinite;
+  }
+
+  .glow-orb-3 {
+    width: 300px; height: 300px;
+    background: rgba(0,255,136,0.04);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: orbFloat3 18s ease-in-out infinite;
+  }
+
+  @keyframes orbFloat1 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(100px, 80px); }
+    66% { transform: translate(-50px, 120px); }
+  }
+
+  @keyframes orbFloat2 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(-80px, -60px); }
+    66% { transform: translate(60px, -100px); }
+  }
+
+  @keyframes orbFloat3 {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.3); }
+  }
+
+  /* Canvas overlay for particles */
+  #particleCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Main content */
+  .main-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Header */
+  .top-bar {
+    background: rgba(12,18,32,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  /* Pulse animation */
+  .pulse-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    position: relative;
+  }
+
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .pulse-dot.green { background: var(--accent); }
+  .pulse-dot.green::after { border: 1px solid var(--accent); }
+  .pulse-dot.yellow { background: var(--warning); }
+  .pulse-dot.yellow::after { border: 1px solid var(--warning); }
+  .pulse-dot.red { background: var(--error); }
+  .pulse-dot.red::after { border: 1px solid var(--error); }
+  .pulse-dot.cyan { background: var(--cyan); }
+  .pulse-dot.cyan::after { border: 1px solid var(--cyan); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.8); }
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .card:hover {
+    border-color: rgba(0,255,136,0.2);
+    background: var(--card-hover);
+  }
+
+  .card:hover::before {
+    opacity: 1;
+  }
+
+  /* Service node */
+  .service-node {
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .service-node:hover {
+    transform: translateY(-2px);
+  }
+
+  .service-node:hover .node-icon {
+    box-shadow: 0 0 20px var(--accent-dim);
+  }
+
+  .node-icon {
+    transition: box-shadow 0.3s;
+  }
+
+  /* Topology canvas */
+  #topoCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Pipeline */
+  .pipeline-step {
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .pipeline-step.completed .step-circle {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+
+  .pipeline-step.running .step-circle {
+    background: transparent;
+    border-color: var(--cyan);
+    color: var(--cyan);
+    animation: stepPulse 1.5s ease-in-out infinite;
+  }
+
+  .pipeline-step.pending .step-circle {
+    background: transparent;
+    border-color: var(--muted);
+    color: var(--muted);
+  }
+
+  .pipeline-step.failed .step-circle {
+    background: transparent;
+    border-color: var(--error);
+    color: var(--error);
+  }
+
+  @keyframes stepPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(6,214,242,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(6,214,242,0); }
+  }
+
+  .pipeline-connector {
+    height: 2px;
+    flex: 1;
+    min-width: 20px;
+    position: relative;
+  }
+
+  .pipeline-connector.completed { background: var(--accent); }
+  .pipeline-connector.running {
+    background: linear-gradient(90deg, var(--accent), var(--cyan));
+    overflow: hidden;
+  }
+
+  .pipeline-connector.running::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    width: 30px;
+    height: 4px;
+    background: var(--cyan);
+    border-radius: 2px;
+    animation: flowDot 1.5s linear infinite;
+  }
+
+  @keyframes flowDot {
+    0% { left: -30px; }
+    100% { left: 100%; }
+  }
+
+  .pipeline-connector.pending { background: var(--border); }
+  .pipeline-connector.failed { background: var(--error); }
+
+  /* Log stream */
+  .log-line {
+    animation: logSlide 0.3s ease-out;
+  }
+
+  @keyframes logSlide {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Metric bar */
+  .metric-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .metric-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  /* Button */
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 20px var(--accent-dim);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    animation: toastIn 0.3s ease-out;
+    backdrop-filter: blur(10px);
+    border: 1px solid;
+    max-width: 360px;
+  }
+
+  .toast.success {
+    background: rgba(0,255,136,0.1);
+    border-color: rgba(0,255,136,0.3);
+    color: var(--accent);
+  }
+
+  .toast.info {
+    background: rgba(6,214,242,0.1);
+    border-color: rgba(6,214,242,0.3);
+    color: var(--cyan);
+  }
+
+  .toast.warning {
+    background: rgba(245,166,35,0.1);
+    border-color: rgba(245,166,35,0.3);
+    color: var(--warning);
+  }
+
+  .toast.error {
+    background: rgba(255,71,87,0.1);
+    border-color: rgba(255,71,87,0.3);
+    color: var(--error);
+  }
+
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(40px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .modal-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+    animation: modalIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+  /* Sparkline */
+  .sparkline { display: inline-block; vertical-align: middle; }
+
+  /* Tab active */
+  .tab-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .tab-btn:hover { color: var(--fg); }
+  .tab-btn.active {
+    background: var(--accent-dim);
+    border-color: rgba(0,255,136,0.2);
+    color: var(--accent);
+  }
+
+  /* Topology tooltip */
+  .topo-tooltip {
+    position: absolute;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 50;
+    font-size: 13px;
+  }
+
+  .topo-tooltip.visible { opacity: 1; }
+
+  /* Workflow animation */
+  .workflow-node {
+    animation: nodeAppear 0.5s ease-out backwards;
+  }
+
+  @keyframes nodeAppear {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Status badge */
+  .status-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-badge.healthy {
+    background: rgba(0,255,136,0.12);
+    color: var(--accent);
+  }
+
+  .status-badge.warning {
+    background: rgba(245,166,35,0.12);
+    color: var(--warning);
+  }
+
+  .status-badge.critical {
+    background: rgba(255,71,87,0.12);
+    color: var(--error);
+  }
+
+  .status-badge.running {
+    background: rgba(6,214,242,0.12);
+    color: var(--cyan);
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .desktop-only { display: none; }
+    .grid-responsive { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="grid-bg"></div>
+<div class="glow-orb glow-orb-1"></div>
+<div class="glow-orb glow-orb-2"></div>
+<div class="glow-orb glow-orb-3"></div>
+<canvas id="particleCanvas"></canvas>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Main content -->
+<div class="main-content">
+
+  <!-- Top bar -->
+  <header class="top-bar">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: var(--accent-dim); border: 1px solid rgba(0,255,136,0.2);">
+          <i class="fas fa-diagram-project text-sm" style="color: var(--accent);"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-semibold tracking-tight" style="color: var(--fg);">Orchestration Control Center</h1>
+          <p class="text-xs mono" style="color: var(--muted);">v3.7.2 — cluster prod-us-east-1</p>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-2 sm:gap-4">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg" style="background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.15);">
+          <div class="pulse-dot green"></div>
+          <span class="text-xs font-medium mono" style="color: var(--accent);">SYSTEMS NOMINAL</span>
+        </div>
+        <button class="btn-secondary text-xs px-3 py-1.5 hidden sm:block" onclick="openDeployModal()">
+          <i class="fas fa-rocket mr-1"></i> Deploy
+        </button>
+        <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--card); border: 1px solid var(--border);" onclick="toggleThemeMode()" aria-label="Toggle settings">
+          <i class="fas fa-sliders text-xs" style="color: var(--muted);"></i>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-[1440px] mx-auto px-4 sm:px-6 py-6">
+
+    <!-- Hero / Overview strip -->
+    <section class="mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-2xl sm:text-3xl font-bold tracking-tight" style="color: var(--fg);">Infrastructure Overview</h2>
+          <p class="text-sm mt-1" style="color: var(--muted);">Automated coordination across <span style="color: var(--accent);" class="font-semibold">47 services</span> and <span style="color: var(--cyan);" class="font-semibold">12 clusters</span></p>
+        </div>
+        <div class="flex gap-2">
+          <button class="tab-btn active" onclick="switchView(this, 'dashboard')">Dashboard</button>
+          <button class="tab-btn" onclick="switchView(this, 'topology')">Topology</button>
+          <button class="tab-btn" onclick="switchView(this, 'workflows')">Workflows</button>
+        </div>
+      </div>
+
+      <!-- Key metrics row -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium" style="color: var(--muted);">Active Services</span>
+            <i class="fas fa-cube text-xs" style="color: var(--accent);"></i>
+          </div>
+          <p class="text-2xl font-bold mono" id="metricServices">47</p>
+          <div class="flex items-center gap-1 mt-1">
+            <i class="fas fa-arrow-up text-[10px]" style="color: var(--accent);"></i>
+            <span class="text-xs mono" style="color: var(--accent);">+3 this week</span>
+          </div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium" style="color: var(--muted);">Uptime (30d)</span>
+            <i class="fas fa-signal text-xs" style="color: var(--cyan);"></i>
+          </div>
+          <p class="text-2xl font-bold mono" id="metricUptime">99.97%</p>
+          <div class="flex items-center gap-1 mt-1">
+            <i class="fas fa-arrow-up text-[10px]" style="color: var(--accent);"></i>
+            <span class="text-xs mono" style="color: var(--accent);">+0.02%</span>
+          </div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium" style="color: var(--muted);">Deployments Today</span>
+            <i class="fas fa-rocket text-xs" style="color: var(--warning);"></i>
+          </div>
+          <p class="text-2xl font-bold mono" id="metricDeploys">18</p>
+          <div class="flex items-center gap-1 mt-1">
+            <i class="fas fa-minus text-[10px]" style="color: var(--muted);"></i>
+            <span class="text-xs mono" style="color: var(--muted);">On track</span>
+          </div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium" style="color: var(--muted);">Alerts</span>
+            <i class="fas fa-bell text-xs" style="color: var(--error);"></i>
+          </div>
+          <p class="text-2xl font-bold mono" id="metricAlerts">2</p>
+          <div class="flex items-center gap-1 mt-1">
+            <i class="fas fa-arrow-down text-[10px]" style="color: var(--accent);"></i>
+            <span class="text-xs mono" style="color: var(--accent);">-5 from yesterday</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main grid: Topology + Pipeline + Services -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 grid-responsive" style="grid-template-columns: 1fr 1fr 1fr;">
+
+      <!-- Topology / Network Graph -->
+      <div class="card lg:col-span-2 p-0" style="min-height: 420px;">
+        <div class="flex items-center justify-between px-5 pt-4 pb-2">
+          <div>
+            <h3 class="text-sm font-semibold">Service Topology</h3>
+            <p class="text-xs" style="color: var(--muted);">Live network mesh — hover nodes for details</p>
+          </div>
+          <div class="flex items-center gap-3 text-xs" style="color: var(--muted);">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background: var(--accent);"></span> Healthy</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background: var(--warning);"></span> Warning</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background: var(--error);"></span> Critical</span>
+          </div>
+        </div>
+        <div style="position: relative; height: 360px;">
+          <canvas id="topoCanvas"></canvas>
+          <div class="topo-tooltip" id="topoTooltip"></div>
+        </div>
+      </div>
+
+      <!-- Active Pipeline -->
+      <div class="card p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold">Deployment Pipeline</h3>
+            <p class="text-xs" style="color: var(--muted);">auth-service v2.14.0</p>
+          </div>
+          <span class="status-badge running">Running</span>
+        </div>
+
+        <div class="flex-1 flex flex-col justify-center gap-0" id="pipelineSteps">
+          <!-- Filled by JS -->
+        </div>
+
+        <div class="mt-4 pt-3" style="border-top: 1px solid var(--border);">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs" style="color: var(--muted);">Progress</span>
+            <span class="text-xs mono font-semibold" style="color: var(--cyan);" id="pipelineProgress">66%</span>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-bar-fill" id="pipelineBar" style="width: 66%; background: linear-gradient(90deg, var(--accent), var(--cyan));"></div>
+          </div>
+          <button class="btn-primary w-full mt-3 text-sm" onclick="triggerPipeline()">
+            <i class="fas fa-play mr-1"></i> Trigger New Deployment
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Second row: Services + Logs + Resource -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4 grid-responsive" style="grid-template-columns: 1fr 1fr 1fr;">
+
+      <!-- Service Status Cards -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold">Service Health</h3>
+          <button class="text-xs" style="color: var(--accent);" onclick="refreshServices()">Refresh</button>
+        </div>
+        <div class="flex flex-col gap-3" id="serviceList">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Log Stream -->
+      <div class="card p-5 flex flex-col" style="max-height: 440px;">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold">Live Log Stream</h3>
+          <div class="flex gap-1">
+            <button class="tab-btn text-[11px] px-2 py-1 active" onclick="filterLogs(this, 'all')">All</button>
+            <button class="tab-btn text-[11px] px-2 py-1" onclick="filterLogs(this, 'error')">Errors</button>
+            <button class="tab-btn text-[11px] px-2 py-1" onclick="filterLogs(this, 'deploy')">Deploy</button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto mono text-xs" id="logStream" style="color: var(--muted);">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- Resource Utilization -->
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold mb-4">Resource Utilization</h3>
+        <div class="flex flex-col gap-4" id="resourceList">
+          <!-- Filled by JS -->
+        </div>
+
+        <div class="mt-5 pt-4" style="border-top: 1px solid var(--border);">
+          <h4 class="text-xs font-semibold mb-3" style="color: var(--muted);">Scaling Events</h4>
+          <div class="flex flex-col gap-2" id="scalingEvents">
+            <!-- Filled by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Third row: Workflow Orchestration + API Endpoints -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 grid-responsive">
+
+      <!-- Workflow Orchestration -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold">Workflow Orchestration</h3>
+            <p class="text-xs" style="color: var(--muted);">Multi-step coordinated processes</p>
+          </div>
+          <button class="btn-secondary text-xs px-3 py-1.5" onclick="createWorkflow()">
+            <i class="fas fa-plus mr-1"></i> New Workflow
+          </button>
+        </div>
+        <div class="flex flex-col gap-3" id="workflowList">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <!-- API Endpoints -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold">API Gateway Endpoints</h3>
+            <p class="text-xs" style="color: var(--muted);">Request routing and health</p>
+          </div>
+          <span class="mono text-xs" style="color: var(--accent);" id="apiTotalReqs">12,847 req/min</span>
+        </div>
+        <div class="flex flex-col gap-2" id="apiEndpoints">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal (hidden) -->
+<div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-lg font-bold" id="modalTitle">Deploy Service</h3>
+      <button onclick="closeModal()" style="color: var(--muted); background:none; border:none; cursor:pointer;" aria-label="Close modal">
+        <i class="fas fa-xmark text-lg"></i>
+      </button>
+    </div>
+    <div id="modalContent">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================
+// Data Models
+// ============================================
+const services = [
+  { id: 'api-gateway', name: 'API Gateway', icon: 'fa-server', status: 'healthy', cpu: 34, memory: 52, instances: 4, latency: '12ms' },
+  { id: 'auth-service', name: 'Auth Service', icon: 'fa-shield-halved', status: 'running', cpu: 28, memory: 45, instances: 3, latency: '8ms' },
+  { id: 'user-service', name: 'User Service', icon: 'fa-users', status: 'healthy', cpu: 22, memory: 38, instances: 2, latency: '15ms' },
+  { id: 'payment-engine', name: 'Payment Engine', icon: 'fa-credit-card', status: 'warning', cpu: 78, memory: 82, instances: 5, latency: '45ms' },
+  { id: 'notification-hub', name: 'Notification Hub', icon: 'fa-bell', status: 'healthy', cpu: 15, memory: 30, instances: 2, latency: '6ms' },
+  { id: 'search-index', name: 'Search Index', icon: 'fa-magnifying-glass', status: 'healthy', cpu: 45, memory: 67, instances: 3, latency: '22ms' },
+  { id: 'media-processor', name: 'Media Processor', icon: 'fa-photo-film', status: 'critical', cpu: 92, memory: 91, instances: 6, latency: '180ms' },
+  { id: 'cache-layer', name: 'Cache Layer', icon: 'fa-bolt', status: 'healthy', cpu: 18, memory: 55, instances: 3, latency: '2ms' },
+];
+
+const pipelineSteps = [
+  { name: 'Source Pull', icon: 'fa-code-branch', status: 'completed' },
+  { name: 'Build', icon: 'fa-hammer', status: 'completed' },
+  { name: 'Unit Tests', icon: 'fa-flask', status: 'completed' },
+  { name: 'Integration Tests', icon: 'fa-vial', status: 'completed' },
+  { name: 'Staging Deploy', icon: 'fa-cloud-arrow-up', status: 'running' },
+  { name: 'Canary Analysis', icon: 'fa-chart-line', status: 'pending' },
+  { name: 'Production Rollout', icon: 'fa-rocket', status: 'pending' },
+];
+
+const resources = [
+  { name: 'CPU Cluster', usage: 62, total: '128 cores', color: 'var(--accent)' },
+  { name: 'Memory Pool', usage: 71, total: '512 GB', color: 'var(--cyan)' },
+  { name: 'Storage', usage: 45, total: '24 TB', color: 'var(--warning)' },
+  { name: 'Network I/O', usage: 33, total: '10 Gbps', color: '#a78bfa' },
+];
+
+const scalingEvents = [
+  { service: 'payment-engine', action: 'scale-up', from: 3, to: 5, time: '2m ago' },
+  { service: 'media-processor', action: 'scale-up', from: 4, to: 6, time: '8m ago' },
+  { service: 'cache-layer', action: 'scale-down', from: 4, to: 3, time: '23m ago' },
+];
+
+const workflows = [
+  { name: 'Blue-Green Deployment', steps: 6, completed: 4, status: 'running', triggered: '12m ago', trigger: 'auto' },
+  { name: 'Database Migration v3', steps: 8, completed: 8, status: 'completed', triggered: '2h ago', trigger: 'manual' },
+  { name: 'Certificate Rotation', steps: 4, completed: 2, status: 'running', triggered: '30m ago', trigger: 'scheduled' },
+  { name: 'Disaster Recovery Drill', steps: 12, completed: 0, status: 'pending', triggered: 'Scheduled 06:00', trigger: 'scheduled' },
+];
+
+const apiEndpoints = [
+  { path: '/api/v2/auth', method: 'POST', latency: '8ms', rps: 2340, status: 'healthy' },
+  { path: '/api/v2/users', method: 'GET', latency: '15ms', rps: 1890, status: 'healthy' },
+  { path: '/api/v2/payments', method: 'POST', latency: '45ms', rps: 560, status: 'warning' },
+  { path: '/api/v2/search', method: 'GET', latency: '22ms', rps: 3200, status: 'healthy' },
+  { path: '/api/v2/media', method: 'POST', latency: '180ms', rps: 120, status: 'critical' },
+  { path: '/api/v2/notifications', method: 'POST', latency: '6ms', rps: 890, status: 'healthy' },
+];
+
+const logMessages = [
+  { level: 'info', service: 'api-gateway', msg: 'Request routed to auth-service: 200 OK' },
+  { level: 'info', service: 'auth-service', msg: 'Token refresh completed for user_7a3f' },
+  { level: 'deploy', service: 'orchestrator', msg: 'Staging deploy initiated for auth-service v2.14.0' },
+  { level: 'info', service: 'cache-layer', msg: 'Cache hit ratio: 94.2% — threshold nominal' },
+  { level: 'warn', service: 'payment-engine', msg: 'Latency spike detected: p99 at 45ms (threshold: 30ms)' },
+  { level: 'error', service: 'media-processor', msg: 'Worker thread pool exhausted — queue depth: 47' },
+  { level: 'info', service: 'search-index', msg: 'Index rebuild completed: 2.3M documents in 4.2s' },
+  { level: 'info', service: 'notification-hub', msg: 'Push notification batch sent: 1,247 deliveries' },
+  { level: 'deploy', service: 'orchestrator', msg: 'Canary analysis starting: 5% traffic shift' },
+  { level: 'error', service: 'media-processor', msg: 'OOM kill detected on worker-6 — restarting pod' },
+  { level: 'info', service: 'user-service', msg: 'Database connection pool healthy: 48/50 active' },
+  { level: 'warn', service: 'payment-engine', msg: 'Circuit breaker half-open: retrying downstream' },
+];
+
+// ============================================
+// Toast System
+// ============================================
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: 'fa-check-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle', error: 'fa-times-circle' };
+  toast.innerHTML = `<i class="fas ${icons[type]} mr-2"></i>${message}`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(40px)';
+    toast.style.transition = 'all 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// ============================================
+// Modal System
+// ============================================
+function openModal(title, contentHTML) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalContent').innerHTML = contentHTML;
+  document.getElementById('modalOverlay').style.display = 'flex';
+}
+
+function closeModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('modalOverlay').style.display = 'none';
+}
+
+function openDeployModal() {
+  const html = `
+    <div class="flex flex-col gap-4">
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Service</label>
+        <select id="deployService" class="w-full p-2.5 rounded-lg text-sm" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg); font-family: 'Space Grotesk';">
+          ${services.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Version</label>
+        <input type="text" value="v2.14.0" class="w-full p-2.5 rounded-lg text-sm mono" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg);">
+      </div>
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Strategy</label>
+        <div class="flex gap-2">
+          <button class="tab-btn active text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Rolling</button>
+          <button class="tab-btn text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Blue-Green</button>
+          <button class="tab-btn text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Canary</button>
+        </div>
+      </div>
+      <button class="btn-primary w-full mt-2" onclick="executeDeploy()">Deploy Now</button>
+    </div>
+  `;
+  openModal('Deploy Service', html);
+}
+
+function executeDeploy() {
+  closeModal();
+  showToast('Deployment initiated for ' + document.getElementById('deployService')?.value || 'service', 'success');
+  setTimeout(() => showToast('Build pipeline started', 'info'), 1500);
+}
+
+function createWorkflow() {
+  const html = `
+    <div class="flex flex-col gap-4">
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Workflow Name</label>
+        <input type="text" placeholder="e.g. Zero-Downtime Migration" class="w-full p-2.5 rounded-lg text-sm" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg);">
+      </div>
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Trigger Type</label>
+        <div class="flex gap-2">
+          <button class="tab-btn active text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Manual</button>
+          <button class="tab-btn text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Scheduled</button>
+          <button class="tab-btn text-xs flex-1" onclick="this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active')">Event-Driven</button>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium block mb-1" style="color: var(--muted);">Steps (comma-separated)</label>
+        <input type="text" placeholder="Validate, Build, Test, Deploy, Verify" class="w-full p-2.5 rounded-lg text-sm" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--fg);">
+      </div>
+      <button class="btn-primary w-full mt-2" onclick="closeModal(); showToast('Workflow created successfully', 'success');">Create Workflow</button>
+    </div>
+  `;
+  openModal('New Workflow', html);
+}
+
+// ============================================
+// Render Pipeline
+// ============================================
+function renderPipeline() {
+  const container = document.getElementById('pipelineSteps');
+  container.innerHTML = '';
+  pipelineSteps.forEach((step, i) => {
+    const stepEl = document.createElement('div');
+    stepEl.className = 'flex items-center gap-3';
+    stepEl.innerHTML = `
+      <div class="pipeline-step ${step.status} workflow-node" style="animation-delay: ${i * 0.08}s">
+        <div class="step-circle w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs" style="flex-shrink:0;">
+          ${step.status === 'completed' ? '<i class="fas fa-check"></i>' : step.status === 'running' ? '<i class="fas fa-spinner fa-spin"></i>' : '<i class="fas ' + step.icon + '"></i>'}
+        </div>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-medium ${step.status === 'pending' ? '' : ''}" style="color: ${step.status === 'completed' ? 'var(--accent)' : step.status === 'running' ? 'var(--cyan)' : step.status === 'pending' ? 'var(--muted)' : 'var(--error)'};">${step.name}</p>
+      </div>
+    `;
+    container.appendChild(stepEl);
+
+    if (i < pipelineSteps.length - 1) {
+      const connEl = document.createElement('div');
+      connEl.className = 'ml-4 mb-0';
+      const nextStatus = pipelineSteps[i + 1].status;
+      const currentStatus = step.status;
+      let connClass = 'pending';
+      if (currentStatus === 'completed' && (nextStatus === 'completed' || nextStatus === 'running')) connClass = 'completed';
+      if (currentStatus === 'running' || (currentStatus === 'completed' && nextStatus === 'running')) connClass = 'running';
+      connEl.innerHTML = `<div class="pipeline-connector ${connClass}" style="width: 2px; height: 16px; margin-left: 15px;"></div>`;
+      container.appendChild(connEl);
+    }
+  });
+}
+
+function triggerPipeline() {
+  pipelineSteps.forEach(s => s.status = 'pending');
+  pipelineSteps[0].status = 'running';
+  renderPipeline();
+  updatePipelineProgress(0);
+  showToast('Deployment pipeline triggered', 'info');
+
+  let step = 0;
+  const interval = setInterval(() => {
+    if (step < pipelineSteps.length) {
+      pipelineSteps[step].status = 'completed';
+      if (step + 1 < pipelineSteps.length) {
+        pipelineSteps[step + 1].status = 'running';
+      }
+      step++;
+      renderPipeline();
+      updatePipelineProgress(Math.round((step / pipelineSteps.length) * 100));
+      if (step === pipelineSteps.length) {
+        clearInterval(interval);
+        showToast('Deployment completed successfully', 'success');
+        setTimeout(() => {
+          pipelineSteps.forEach((s, i) => {
+            if (i < 4) s.status = 'completed';
+            else if (i === 4) s.status = 'running';
+            else s.status = 'pending';
+          });
+          renderPipeline();
+          updatePipelineProgress(66);
+        }, 5000);
+      }
+    }
+  }, 1200);
+}
+
+function updatePipelineProgress(pct) {
+  document.getElementById('pipelineProgress').textContent = pct + '%';
+  document.getElementById('pipelineBar').style.width = pct + '%';
+}
+
+// ============================================
+// Render Services
+// ============================================
+function renderServices() {
+  const container = document.getElementById('serviceList');
+  container.innerHTML = '';
+  services.forEach(s => {
+    const statusColor = s.status === 'healthy' ? 'green' : s.status === 'warning' ? 'yellow' : s.status === 'running' ? 'cyan' : 'red';
+    const statusLabel = s.status.charAt(0).toUpperCase() + s.status.slice(1);
+    const el = document.createElement('div');
+    el.className = 'service-node flex items-center gap-3 p-2.5 rounded-lg';
+    el.style.cssText = 'background: var(--bg-elevated); border: 1px solid var(--border);';
+    el.onclick = () => showServiceDetail(s);
+    el.innerHTML = `
+      <div class="node-icon w-9 h-9 rounded-lg flex items-center justify-center" style="background: ${s.status === 'healthy' ? 'var(--accent-dim)' : s.status === 'warning' ? 'rgba(245,166,35,0.12)' : s.status === 'critical' ? 'rgba(255,71,87,0.12)' : 'var(--cyan-dim)'}; flex-shrink:0;">
+        <i class="fas ${s.icon} text-xs" style="color: ${s.status === 'healthy' ? 'var(--accent)' : s.status === 'warning' ? 'var(--warning)' : s.status === 'critical' ? 'var(--error)' : 'var(--cyan)'};"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold truncate">${s.name}</p>
+          <div class="pulse-dot ${statusColor}" style="flex-shrink:0;"></div>
+        </div>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-[10px] mono" style="color: var(--muted);">CPU ${s.cpu}%</span>
+          <div class="metric-bar flex-1" style="max-width: 60px;">
+            <div class="metric-bar-fill" style="width: ${s.cpu}%; background: ${s.cpu > 80 ? 'var(--error)' : s.cpu > 60 ? 'var(--warning)' : 'var(--accent)'};"></div>
+          </div>
+          <span class="text-[10px] mono" style="color: var(--muted);">${s.instances}x</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+function showServiceDetail(s) {
+  const html = `
+    <div class="flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: ${s.status === 'healthy' ? 'var(--accent-dim)' : s.status === 'warning' ? 'rgba(245,166,35,0.12)' : 'rgba(255,71,87,0.12)'};">
+          <i class="fas ${s.icon} text-lg" style="color: ${s.status === 'healthy' ? 'var(--accent)' : s.status === 'warning' ? 'var(--warning)' : 'var(--error)'};"></i>
+        </div>
+        <div>
+          <p class="font-bold">${s.name}</p>
+          <span class="status-badge ${s.status}">${s.status}</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+          <p class="text-[10px] mb-1" style="color: var(--muted);">CPU Usage</p>
+          <p class="text-lg font-bold mono">${s.cpu}%</p>
+        </div>
+        <div class="p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+          <p class="text-[10px] mb-1" style="color: var(--muted);">Memory</p>
+          <p class="text-lg font-bold mono">${s.memory}%</p>
+        </div>
+        <div class="p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+          <p class="text-[10px] mb-1" style="color: var(--muted);">Instances</p>
+          <p class="text-lg font-bold mono">${s.instances}</p>
+        </div>
+        <div class="p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+          <p class="text-[10px] mb-1" style="color: var(--muted);">Latency</p>
+          <p class="text-lg font-bold mono">${s.latency}</p>
+        </div>
+      </div>
+      <button class="btn-secondary w-full text-sm" onclick="closeModal(); openDeployModal();">
+        <i class="fas fa-rocket mr-1"></i> Deploy New Version
+      </button>
+    </div>
+  `;
+  openModal(s.name, html);
+}
+
+function refreshServices() {
+  services.forEach(s => {
+    s.cpu = Math.max(5, Math.min(95, s.cpu + Math.floor(Math.random() * 20) - 10));
+    s.memory = Math.max(10, Math.min(95, s.memory + Math.floor(Math.random() * 15) - 7));
+  });
+  renderServices();
+  showToast('Service metrics refreshed', 'info');
+}
+
+// ============================================
+// Render Resources
+// ============================================
+function renderResources() {
+  const container = document.getElementById('resourceList');
+  container.innerHTML = '';
+  resources.forEach(r => {
+    const el = document.createElement('div');
+    el.innerHTML = `
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-xs font-medium">${r.name}</span>
+        <span class="text-xs mono" style="color: ${r.color};">${r.usage}%</span>
+      </div>
+      <div class="metric-bar">
+        <div class="metric-bar-fill" style="width: ${r.usage}%; background: ${r.color};"></div>
+      </div>
+      <p class="text-[10px] mt-1 mono" style="color: var(--muted);">${r.total} allocated</p>
+    `;
+    container.appendChild(el);
+  });
+
+  const scaleContainer = document.getElementById('scalingEvents');
+  scaleContainer.innerHTML = '';
+  scalingEvents.forEach(ev => {
+    const el = document.createElement('div');
+    el.className = 'flex items-center justify-between text-xs';
+    el.innerHTML = `
+      <div class="flex items-center gap-2">
+        <i class="fas ${ev.action === 'scale-up' ? 'fa-arrow-up' : 'fa-arrow-down'}" style="color: ${ev.action === 'scale-up' ? 'var(--accent)' : 'var(--warning)'}; font-size: 10px;"></i>
+        <span class="mono font-medium">${ev.service}</span>
+      </div>
+      <span class="mono" style="color: var(--muted);">${ev.from} → ${ev.to}</span>
+      <span style="color: var(--muted);">${ev.time}</span>
+    `;
+    scaleContainer.appendChild(el);
+  });
+}
+
+// ============================================
+// Render Workflows
+// ============================================
+function renderWorkflows() {
+  const container = document.getElementById('workflowList');
+  container.innerHTML = '';
+  workflows.forEach(w => {
+    const statusClass = w.status === 'completed' ? 'healthy' : w.status === 'running' ? 'running' : w.status === 'failed' ? 'critical' : 'warning';
+    const pct = w.steps > 0 ? Math.round((w.completed / w.steps) * 100) : 0;
+    const el = document.createElement('div');
+    el.className = 'p-3 rounded-lg';
+    el.style.cssText = 'background: var(--bg-elevated); border: 1px solid var(--border); cursor: pointer;';
+    el.onclick = () => showToast(`Workflow "${w.name}" — ${pct}% complete`, 'info');
+    el.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold">${w.name}</p>
+        <span class="status-badge ${statusClass}">${w.status}</span>
+      </div>
+      <div class="metric-bar mb-1.5">
+        <div class="metric-bar-fill" style="width: ${pct}%; background: ${w.status === 'completed' ? 'var(--accent)' : w.status === 'running' ? 'linear-gradient(90deg, var(--accent), var(--cyan))' : 'var(--border)'};"></div>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] mono" style="color: var(--muted);">${w.completed}/${w.steps} steps</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] mono px-1.5 py-0.5 rounded" style="background: var(--card); color: var(--muted);">${w.trigger}</span>
+          <span class="text-[10px]" style="color: var(--muted);">${w.triggered}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+// ============================================
+// Render API Endpoints
+// ============================================
+function renderAPIEndpoints() {
+  const container = document.getElementById('apiEndpoints');
+  container.innerHTML = '';
+  apiEndpoints.forEach(ep => {
+    const methodColor = ep.method === 'GET' ? 'var(--accent)' : ep.method === 'POST' ? 'var(--cyan)' : 'var(--warning)';
+    const el = document.createElement('div');
+    el.className = 'flex items-center gap-3 p-2.5 rounded-lg';
+    el.style.cssText = 'background: var(--bg-elevated); border: 1px solid var(--border);';
+    el.innerHTML = `
+      <span class="mono text-[10px] font-bold px-1.5 py-0.5 rounded" style="background: ${methodColor}22; color: ${methodColor}; min-width: 36px; text-align: center;">${ep.method}</span>
+      <span class="mono text-xs flex-1 truncate" style="color: var(--fg);">${ep.path}</span>
+      <span class="mono text-[10px]" style="color: var(--muted);">${ep.latency}</span>
+      <span class="mono text-[10px]" style="color: var(--muted);">${ep.rps.toLocaleString()}/s</span>
+      <div class="w-2 h-2 rounded-full" style="background: ${ep.status === 'healthy' ? 'var(--accent)' : ep.status === 'warning' ? 'var(--warning)' : 'var(--error)'};"></div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+// ============================================
+// Log Stream
+// ============================================
+let currentLogFilter = 'all';
+let logStreamData = [];
+
+function addLogEntry() {
+  const entry = logMessages[Math.floor(Math.random() * logMessages.length)];
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+  logStreamData.unshift({ ...entry, time });
+  if (logStreamData.length > 80) logStreamData.pop();
+  renderLogs();
+}
+
+function renderLogs() {
+  const container = document.getElementById('logStream');
+  const filtered = currentLogFilter === 'all' ? logStreamData :
+    logStreamData.filter(l => {
+      if (currentLogFilter === 'error') return l.level === 'error';
+      if (currentLogFilter === 'deploy') return l.level === 'deploy';
+      return true;
+    });
+
+  container.innerHTML = filtered.slice(0, 30).map(l => {
+    const levelColor = l.level === 'error' ? 'var(--error)' : l.level === 'warn' ? 'var(--warning)' : l.level === 'deploy' ? 'var(--cyan)' : 'var(--muted)';
+    const levelBg = l.level === 'error' ? 'rgba(255,71,87,0.08)' : l.level === 'warn' ? 'rgba(245,166,35,0.08)' : l.level === 'deploy' ? 'rgba(6,214,242,0.08)' : 'transparent';
+    return `<div class="log-line py-1 px-2 rounded" style="background: ${levelBg};">
+      <span style="color: var(--muted);">${l.time}</span>
+      <span style="color: ${levelColor}; font-weight: 600;"> [${l.level.toUpperCase()}]</span>
+      <span style="color: var(--accent);"> ${l.service}</span>
+      <span style="color: var(--muted);"> ${l.msg}</span>
+    </div>`;
+  }).join('');
+}
+
+function filterLogs(btn, filter) {
+  currentLogFilter = filter;
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLogs();
+}
+
+// ============================================
+// Topology Canvas (Interactive Network Graph)
+// ============================================
+const topoCanvas = document.getElementById('topoCanvas');
+const topoCtx = topoCanvas.getContext('2d');
+let topoNodes = [];
+let topoEdges = [];
+let hoveredNode = null;
+let animFrame = 0;
+
+function initTopology() {
+  const rect = topoCanvas.parentElement.getBoundingClientRect();
+  topoCanvas.width = rect.width * window.devicePixelRatio;
+  topoCanvas.height = rect.height * window.devicePixelRatio;
+  topoCanvas.style.width = rect.width + 'px';
+  topoCanvas.style.height = rect.height + 'px';
+  topoCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  const w = rect.width;
+  const h = rect.height;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  // Create nodes in a radial layout
+  topoNodes = services.map((s, i) => {
+    const angle = (i / services.length) * Math.PI * 2 - Math.PI / 2;
+    const radius = Math.min(w, h) * 0.32;
+    return {
+      ...s,
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius,
+      targetX: cx + Math.cos(angle) * radius,
+      targetY: cy + Math.sin(angle) * radius,
+      radius: 18,
+      vx: 0,
+      vy: 0,
+    };
+  });
+
+  // Add orchestrator node in center
+  topoNodes.push({
+    id: 'orchestrator', name: 'Orchestrator', icon: 'fa-diagram-project',
+    status: 'healthy', x: cx, y: cy, targetX: cx, targetY: cy,
+    radius: 24, vx: 0, vy: 0,
+  });
+
+  // Create edges — connect orchestrator to all, plus some peer connections
+  const orchIdx = topoNodes.length - 1;
+  topoEdges = [];
+  for (let i = 0; i < services.length; i++) {
+    topoEdges.push({ from: orchIdx, to: i });
+  }
+  // Peer connections
+  topoEdges.push({ from: 0, to: 1 }); // api-gateway -> auth
+  topoEdges.push({ from: 0, to: 2 }); // api-gateway -> user
+  topoEdges.push({ from: 0, to: 5 }); // api-gateway -> search
+  topoEdges.push({ from: 1, to: 7 }); // auth -> cache
+  topoEdges.push({ from: 3, to: 7 }); // payment -> cache
+  topoEdges.push({ from: 6, to: 4 }); // media -> notification
+  topoEdges.push({ from: 2, to: 5 }); // user -> search
+}
+
+function drawTopology() {
+  const w = topoCanvas.width / window.devicePixelRatio;
+  const h = topoCanvas.height / window.devicePixelRatio;
+  topoCtx.clearRect(0, 0, w, h);
+  animFrame++;
+
+  // Draw edges
+  topoEdges.forEach(edge => {
+    const from = topoNodes[edge.from];
+    const to = topoNodes[edge.to];
+    const isHovered = hoveredNode === edge.from || hoveredNode === edge.to;
+
+    topoCtx.beginPath();
+    topoCtx.moveTo(from.x, from.y);
+    topoCtx.lineTo(to.x, to.y);
+
+    if (isHovered) {
+      topoCtx.strokeStyle = 'rgba(0,255,136,0.4)';
+      topoCtx.lineWidth = 2;
+    } else {
+      topoCtx.strokeStyle = 'rgba(30,45,74,0.6)';
+      topoCtx.lineWidth = 1;
+    }
+    topoCtx.stroke();
+
+    // Flowing particles along edges
+    if (isHovered || Math.random() < 0.3) {
+      const t = ((animFrame * 0.01) + edge.from * 0.3) % 1;
+      const px = from.x + (to.x - from.x) * t;
+      const py = from.y + (to.y - from.y) * t;
+      topoCtx.beginPath();
+      topoCtx.arc(px, py, isHovered ? 3 : 2, 0, Math.PI * 2);
+      topoCtx.fillStyle = isHovered ? 'rgba(0,255,136,0.8)' : 'rgba(0,255,136,0.2)';
+      topoCtx.fill();
+    }
+  });
+
+  // Draw nodes
+  topoNodes.forEach((node, i) => {
+    // Subtle float
+    node.x = node.targetX + Math.sin(animFrame * 0.02 + i) * 3;
+    node.y = node.targetY + Math.cos(animFrame * 0.015 + i * 0.7) * 3;
+
+    const isHovered = hoveredNode === i;
+    const statusColor = node.status === 'healthy' ? '#00ff88' : node.status === 'warning' ? '#f5a623' : node.status === 'critical' ? '#ff4757' : '#06d6f2';
+
+    // Glow
+    if (isHovered) {
+      const grd = topoCtx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.radius * 2.5);
+      grd.addColorStop(0, statusColor + '33');
+      grd.addColorStop(1, statusColor + '00');
+      topoCtx.fillStyle = grd;
+      topoCtx.beginPath();
+      topoCtx.arc(node.x, node.y, node.radius * 2.5, 0, Math.PI * 2);
+      topoCtx.fill();
+    }
+
+    // Node circle
+    topoCtx.beginPath();
+    topoCtx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+    topoCtx.fillStyle = isHovered ? '#1a2540' : '#0f1829';
+    topoCtx.fill();
+    topoCtx.strokeStyle = isHovered ? statusColor : statusColor + '88';
+    topoCtx.lineWidth = isHovered ? 2.5 : 1.5;
+    topoCtx.stroke();
+
+    // Status dot
+    topoCtx.beginPath();
+    topoCtx.arc(node.x, node.y, 4, 0, Math.PI * 2);
+    topoCtx.fillStyle = statusColor;
+    topoCtx.fill();
+
+    // Label
+    topoCtx.font = `${isHovered ? '600' : '500'} 10px 'Space Grotesk'`;
+    topoCtx.fillStyle = isHovered ? '#e8edf5' : '#5a6a8a';
+    topoCtx.textAlign = 'center';
+    topoCtx.fillText(node.name, node.x, node.y + node.radius + 14);
+  });
+
+  requestAnimationFrame(drawTopology);
+}
+
+// Mouse interaction for topology
+topoCanvas.addEventListener('mousemove', (e) => {
+  const rect = topoCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  let found = -1;
+  topoNodes.forEach((node, i) => {
+    const dx = mx - node.x;
+    const dy = my - node.y;
+    if (Math.sqrt(dx * dx + dy * dy) < node.radius + 8) {
+      found = i;
+    }
+  });
+
+  hoveredNode = found >= 0 ? found : null;
+
+  const tooltip = document.getElementById('topoTooltip');
+  if (hoveredNode !== null) {
+    const node = topoNodes[hoveredNode];
+    topoCanvas.style.cursor = 'pointer';
+    tooltip.innerHTML = `
+      <p class="font-semibold" style="color: var(--fg);">${node.name}</p>
+      <p style="color: var(--muted);">Status: <span style="color: ${node.status === 'healthy' ? 'var(--accent)' : node.status === 'warning' ? 'var(--warning)' : 'var(--error)'};">${node.status}</span></p>
+      <p style="color: var(--muted);">Latency: ${node.latency || 'N/A'}</p>
+    `;
+    tooltip.style.left = (node.x + 30) + 'px';
+    tooltip.style.top = (node.y - 20) + 'px';
+    tooltip.classList.add('visible');
+  } else {
+    topoCanvas.style.cursor = 'default';
+    tooltip.classList.remove('visible');
+  }
+});
+
+topoCanvas.addEventListener('click', () => {
+  if (hoveredNode !== null) {
+    const node = topoNodes[hoveredNode];
+    const svc = services.find(s => s.id === node.id);
+    if (svc) showServiceDetail(svc);
+    else showToast('Orchestrator core — managing 47 services', 'info');
+  }
+});
+
+// ============================================
+// Background Particles
+// ============================================
+const particleCanvas = document.getElementById('particleCanvas');
+const pCtx = particleCanvas.getContext('2d');
+let particles = [];
+
+function initParticles() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  particleCanvas.width = w * window.devicePixelRatio;
+  particleCanvas.height = h * window.devicePixelRatio;
+  particleCanvas.style.width = w + 'px';
+  particleCanvas.style.height = h + 'px';
+  pCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  particles = [];
+  const count = Math.min(60, Math.floor(w * h / 20000));
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      size: Math.random() * 1.5 + 0.5,
+      opacity: Math.random() * 0.3 + 0.1,
+    });
+  }
+}
+
+function drawParticles() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  pCtx.clearRect(0, 0, w, h);
+
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0) p.x = w;
+    if (p.x > w) p.x = 0;
+    if (p.y < 0) p.y = h;
+    if (p.y > h) p.y = 0;
+
+    pCtx.beginPath();
+    pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    pCtx.fillStyle = `rgba(0,255,136,${p.opacity})`;
+    pCtx.fill();
+  });
+
+  // Draw connections between nearby particles
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        pCtx.beginPath();
+        pCtx.moveTo(particles[i].x, particles[i].y);
+        pCtx.lineTo(particles[j].x, particles[j].y);
+        pCtx.strokeStyle = `rgba(0,255,136,${0.05 * (1 - dist / 150)})`;
+        pCtx.lineWidth = 0.5;
+        pCtx.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(drawParticles);
+}
+
+// ============================================
+// View Switching
+// ============================================
+function switchView(btn, view) {
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  showToast(`Switched to ${view} view`, 'info');
+}
+
+// ============================================
+// Settings toggle (just visual feedback)
+// ============================================
+function toggleThemeMode() {
+  showToast('Settings panel — feature coming soon', 'info');
+}
+
+// ============================================
+// Live Metric Updates
+// ============================================
+function updateMetrics() {
+  // Slightly vary metrics
+  const svcEl = document.getElementById('metricServices');
+  const upEl = document.getElementById('metricUptime');
+  const depEl = document.getElementById('metricDeploys');
+  const alertEl = document.getElementById('metricAlerts');
+
+  const uptime = (99.9 + Math.random() * 0.09).toFixed(2);
+  upEl.textContent = uptime + '%';
+
+  const deploys = parseInt(depEl.textContent) + (Math.random() > 0.7 ? 1 : 0);
+  depEl.textContent = deploys;
+
+  // Update resource bars
+  resources.forEach(r => {
+    r.usage = Math.max(10, Math.min(95, r.usage + Math.floor(Math.random() * 6) - 3));
+  });
+  renderResources();
+
+  // Update service CPU
+  services.forEach(s => {
+    s.cpu = Math.max(5, Math.min(95, s.cpu + Math.floor(Math.random() * 10) - 5));
+    s.memory = Math.max(10, Math.min(95, s.memory + Math.floor(Math.random() * 8) - 4));
+  });
+  renderServices();
+
+  // Update API latency
+  apiEndpoints.forEach(ep => {
+    const baseLat = parseInt(ep.latency);
+    ep.latency = Math.max(1, baseLat + Math.floor(Math.random() * 6) - 3) + 'ms';
+    ep.rps = Math.max(50, ep.rps + Math.floor(Math.random() * 200) - 100);
+  });
+  renderAPIEndpoints();
+
+  const totalRps = apiEndpoints.reduce((a, b) => a + b.rps, 0);
+  document.getElementById('apiTotalReqs').textContent = Math.round(totalRps / 60).toLocaleString() + ' req/min';
+}
+
+// ============================================
+// Initialization
+// ============================================
+function init() {
+  renderPipeline();
+  renderServices();
+  renderResources();
+  renderWorkflows();
+  renderAPIEndpoints();
+  initTopology();
+  drawTopology();
+  initParticles();
+  drawParticles();
+
+  // Populate initial logs
+  for (let i = 0; i < 15; i++) addLogEntry();
+
+  // Live log stream
+  setInterval(addLogEntry, 2500);
+
+  // Live metric updates
+  setInterval(updateMetrics, 5000);
+
+  // Resize handling
+  window.addEventListener('resize', () => {
+    initTopology();
+    initParticles();
+  });
+
+  // Welcome toast
+  setTimeout(() => showToast('Connected to cluster prod-us-east-1', 'success'), 800);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
